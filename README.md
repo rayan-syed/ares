@@ -26,8 +26,13 @@ cmake --build build-headless --target n64-headless -j 8
 
 #### Test through frame (1000th) inspection
 ```
-./build-headless/tools/n64-headless/n64-headless <rom> 1000 frame.ppm 
+./build-headless/tools/n64-headless/n64-headless \
+  --rom <rom>.z64 \
+  --frames 1000 \
+  --dump frame.ppm \
+  --gpu 1 \
+  --homebrew 1 \
+  --recompiler 1
 
 convert frame.ppm frame.png
 ```
-

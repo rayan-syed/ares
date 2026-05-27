@@ -31,10 +31,6 @@ auto PlatformHeadless::video(
       width
     );
   }
-
-  if(frameCount % 60 == 0) {
-    print("video frame ", frameCount, ": ", width, "x", height, "\n");
-  }
   
   frameCount++;
 }
