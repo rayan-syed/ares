@@ -84,7 +84,7 @@ auto main(int argc, char** argv) -> int {
     region = normalizeRegion(game->pak->attribute("region"));
   }
 
-  ares::Nintendo64::option("Enable GPU acceleration", false);
+  ares::Nintendo64::option("Enable GPU acceleration", true);
   ares::Nintendo64::option("Homebrew Mode", true);
   ares::Nintendo64::option("Recompiler", true);
   ares::Nintendo64::option("Expansion Pak", true);
