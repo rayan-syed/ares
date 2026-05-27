@@ -25,6 +25,7 @@ set(
 
 add_subdirectory(ares)
 add_subdirectory(mia)
+add_subdirectory(tools/n64-headless)
 add_subdirectory(desktop-ui)
 
 option(ARES_BUILD_OPTIONAL_TARGETS "Include supplemental tools and tests" OFF)
