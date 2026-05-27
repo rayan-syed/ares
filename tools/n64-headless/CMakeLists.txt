@@ -1,5 +1,7 @@
 add_executable(n64-headless
   main.cpp
+  n64-runtime.cpp
+  n64-runtime.hpp
   platform-headless.cpp
   platform-headless.hpp
 )

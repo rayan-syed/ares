@@ -1,27 +1,8 @@
-#include "platform-headless.hpp"
+#include "n64-runtime.hpp"
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-
-namespace ares::Nintendo64 {
-  auto option(string name, string value) -> bool;
-  auto load(Node::System& node, string name) -> bool;
-}
-
-struct Options {
-  string romPath;
-  string dumpPath = "frame.ppm";
-
-  u64 frames = 120;
-
-  bool gpu = true;
-  bool homebrew = true;
-  bool recompiler = true;
-  bool expansionPak = true;
-
-  string controllerPakBanks = "32KiB (Default)";
-};
 
 static auto usage(const char* argv0) -> void {
   print(
@@ -72,11 +53,9 @@ static auto requireValue(int& i, int argc, char** argv, const char* flag) -> con
   return argv[++i];
 }
 
-static auto parseArgs(int argc, char** argv, Options& options) -> bool {
+static auto parseArgs(int argc, char** argv, N64RuntimeOptions& options) -> bool {
   if(argc < 2) return false;
 
-  // Backward-compatible positional form:
-  //   n64-headless rom.z64 [frames] [dump.ppm]
   if(argv[1][0] != '-') {
     options.romPath = argv[1];
 
@@ -178,17 +157,8 @@ static auto dumpPPM(const string& path, const std::vector<u32>& pixels, u32 widt
   return true;
 }
 
-static auto normalizeRegion(string region) -> string {
-  if(region.find("PAL")) return "PAL";
-  return "NTSC";
-}
-
-static auto boolString(bool value) -> string {
-  return value ? "true" : "false";
-}
-
 auto main(int argc, char** argv) -> int {
-  Options options;
+  N64RuntimeOptions options;
 
   if(!parseArgs(argc, argv, options)) {
     usage(argv[0]);
@@ -205,99 +175,30 @@ auto main(int argc, char** argv) -> int {
   print("  expansion pak: ", options.expansionPak ? "1" : "0", "\n");
   print("  controller pak banks: ", options.controllerPakBanks, "\n");
 
-  directory::create("./Saves/");
+  N64Runtime runtime;
 
-  mia::setHomeLocation([] { return string{"./"}; });
-  mia::setSaveLocation([] { return string{"./Saves/"}; });
-
-  PlatformHeadless headless;
-  ares::platform = &headless;
-
-  auto game = mia::Medium::create("Nintendo 64");
-  if(!game) {
-    print("failed to create Nintendo 64 medium\n");
+  if(!runtime.load(options)) {
     return 2;
   }
 
-  auto gameResult = game->load(options.romPath);
-  if(gameResult != successful) {
-    print("failed to load ROM: ", options.romPath, "\n");
+  if(!runtime.power()) {
+    print("failed to power runtime\n");
     return 3;
   }
 
-  auto system = mia::System::create("Nintendo 64");
-  if(!system) {
-    print("failed to create Nintendo 64 system\n");
+  runtime.runUntilFrame(options.frames);
+
+  if(!dumpPPM(options.dumpPath, runtime.framebuffer(), runtime.width(), runtime.height())) {
+    print("failed to dump frame\n");
+    runtime.save();
+    runtime.unload();
     return 4;
   }
 
-  auto systemResult = system->load();
-  if(systemResult != successful) {
-    print("failed to load Nintendo 64 system pak\n");
-    return 5;
-  }
+  print("dumped ", runtime.width(), "x", runtime.height(), " frame to ", options.dumpPath, "\n");
 
-  headless.gamePak = game->pak;
-  headless.systemPak = system->pak;
-
-  string region = "NTSC";
-  if(game->pak && game->pak->attribute("region")) {
-    region = normalizeRegion(game->pak->attribute("region"));
-  }
-
-  ares::Nintendo64::option("Quality", "0");
-  ares::Nintendo64::option("Supersampling", "false");
-  ares::Nintendo64::option("Enable GPU acceleration", options.gpu);
-  ares::Nintendo64::option("Disable Video Interface Processing", false);
-  ares::Nintendo64::option("Weave Deinterlacing", false);
-  ares::Nintendo64::option("Homebrew Mode", options.homebrew);
-  ares::Nintendo64::option("Recompiler", options.recompiler);
-  ares::Nintendo64::option("Expansion Pak", options.expansionPak);
-  ares::Nintendo64::option("Controller Pak Banks", options.controllerPakBanks);
-
-  ares::Node::System root;
-
-  string systemName = {"[Nintendo] Nintendo 64 (", region, ")"};
-  print("loading core system: ", systemName, "\n");
-
-  if(!ares::Nintendo64::load(root, systemName)) {
-    print("failed to load core system: ", systemName, "\n");
-    return 6;
-  }
-
-  if(auto port = root->find<ares::Node::Port>("Cartridge Slot")) {
-    port->allocate();
-    port->connect();
-  } else {
-    print("could not find Cartridge Slot\n");
-    return 7;
-  }
-
-  if(auto port = root->find<ares::Node::Port>("Controller Port 1")) {
-    port->allocate("Gamepad");
-    port->connect();
-  } else {
-    print("could not find Controller Port 1\n");
-  }
-
-  root->power();
-
-  while(headless.frameCount < options.frames) {
-    root->run();
-  }
-
-  if(!dumpPPM(options.dumpPath, headless.frame, headless.frameWidth, headless.frameHeight)) {
-    print("failed to dump frame\n");
-    return 8;
-  }
-
-  print("dumped ", headless.frameWidth, "x", headless.frameHeight, " frame to ", options.dumpPath, "\n");
-
-  root->save();
-  root->unload();
-
-  game->save(game->location);
-  system->save(system->location);
+  runtime.save();
+  runtime.unload();
 
   return 0;
 }
